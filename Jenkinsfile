@@ -1,14 +1,35 @@
 pipeline {
   agent any
   tools { 
-        maven 'Maven_3_5_2'  
+        maven 'Maven_3_8_4'  
+    }
+	environment {
+        SONAR_PROJECT_KEY = 'souravbuggywebapp'
+        SONAR_ORGANIZATION = 'souravbuggywebapp'
+        SONAR_HOST_URL = 'https://sonarcloud.io'
     }
    stages{
-    stage('CompileandRunSonarAnalysis') {
-            steps {	
-		sh 'mvn clean verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=testoneado -Dsonar.organization=testoneado -Dsonar.host.url=https://sonarcloud.io -Dsonar.token=0716ab3bd8d2d91a743a49cb07f61546fadbfcf3'
-			}
-    }
+    stage('SonarCloud Analysis') {
+            steps {
+                echo 'Starting SonarCloud analysis...'
+        
+                withCredentials([
+                    string(
+                        credentialsId: 'sonarcloud-token',
+                        variable: 'SONAR_TOKEN'
+                    )
+                ]) {
+                    sh '''
+                        mvn org.sonarsource.scanner.maven:sonar-maven-plugin:5.8.0.7211:sonar \
+                        -Dsonar.projectKey=souravbuggywebapp \
+                        -Dsonar.organization=souravbuggywebapp \
+                        -Dsonar.host.url=https://sonarcloud.io \
+                        -Dsonar.token="$SONAR_TOKEN" \
+                        -Dsonar.nodejs.executable=/usr/bin/node-22
+                    '''
+                }
+            }
+        }
 
 	stage('RunSCAAnalysisUsingSnyk') {
             steps {		
@@ -22,7 +43,7 @@ pipeline {
             steps { 
                withDockerRegistry([credentialsId: "dockerlogin", url: ""]) {
                  script{
-                 app =  docker.build("asg")
+                 app =  docker.build("testing-ecr")
                  }
                }
             }
@@ -31,14 +52,14 @@ pipeline {
 	stage('Push') {
             steps {
                 script{
-                    docker.withRegistry('https://429128461530.dkr.ecr.us-east-1.amazonaws.com', 'ecr:us-east-1:aws-credentials') {
+                    docker.withRegistry('https://335523638368.dkr.ecr.ap-southeast-2.amazonaws.com', 'ecr:ap-southeast-2:aws-credentials') {
                     app.push("latest")
                     }
                 }
             }
     	}
 	   
-	stage('Kubernetes Deployment of ASG Bugg Web Application') {
+	stage('Kubernetes Deployment of Sourav Bugg Web Application') {
 	   steps {
 	      withKubeConfig([credentialsId: 'kubelogin']) {
 		  sh('kubectl delete all --all -n devsecops')
